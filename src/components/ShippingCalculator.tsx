@@ -1,20 +1,17 @@
 import { useMemo, useState } from "react";
 import {
-  Plane,
-  Package,
-  Ruler,
-  Flame,
-  ShieldCheck,
-  Receipt,
   ArrowRight,
-  Info,
-  Sparkles,
+  Calculator,
+  Globe2,
+  Package,
+  Plane,
+  Receipt,
+  Ruler,
 } from "lucide-react";
+import pricingData from "@/data/europeConnectPricing";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -24,89 +21,157 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-type CountryKey = "UK" | "FR" | "IT" | "DE";
-type DestinationCountryKey = "KR" | "JP" | "SG" | "AE" | "US";
+type TradeType = "import" | "export";
 
-const COUNTRIES: Record<
-  CountryKey,
-  { label: string; sub: string; rate: number; flag: string }
-> = {
-  UK: { label: "United Kingdom", sub: "영국", rate: 12000, flag: "🇬🇧" },
-  FR: { label: "France", sub: "프랑스", rate: 13500, flag: "🇫🇷" },
-  IT: { label: "Italy", sub: "이탈리아", rate: 14000, flag: "🇮🇹" },
-  DE: { label: "Germany", sub: "독일", rate: 12500, flag: "🇩🇪" },
+type CountryRecord = {
+  id: string;
+  rawName: string;
+  label: string;
+  exportZone: number | null;
+  importZone: number | null;
 };
 
-const DESTINATION_COUNTRIES: Record<
-  DestinationCountryKey,
-  { label: string; flag: string }
-> = {
-  KR: { label: "South Korea", flag: "KR" },
-  JP: { label: "Japan", flag: "JP" },
-  SG: { label: "Singapore", flag: "SG" },
-  AE: { label: "United Arab Emirates", flag: "AE" },
-  US: { label: "United States", flag: "US" },
+type TariffRow = {
+  band: string;
+  multiplier: number;
 };
 
-const QUARANTINE_FEE = 55000;
+type RateTable = {
+  fuelSurcharge: number | null;
+  weights: number[];
+  ndcRates: Record<string, Record<string, number | null>>;
+};
 
-const formatKRW = (n: number) =>
-  "₩ " + Math.round(n).toLocaleString("ko-KR");
+const countries = pricingData.countries as CountryRecord[];
+const importSaver = pricingData.importSaver as RateTable;
+const exportSaver = pricingData.exportSaver as RateTable;
+const tariffs = pricingData.tariff as {
+  import: TariffRow[];
+  export: TariffRow[];
+  roundingNote: string;
+};
 
-const ceilHalf = (n: number) => Math.ceil(n * 2) / 2;
+const formatKRW = (value: number) =>
+  `${Math.round(value).toLocaleString("ko-KR")}원`;
+
+const ceilHalf = (value: number) => Math.ceil(value * 2) / 2;
+
+const normalizeCountry = (value: string) =>
+  value.toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+const getTariffMultiplier = (tradeType: TradeType, weight: number) => {
+  const rows = tradeType === "import" ? tariffs.import : tariffs.export;
+  if (weight <= 2) return rows[0]?.multiplier ?? 1.7;
+  if (weight <= 3) return rows[1]?.multiplier ?? 1.65;
+  if (weight <= 5) return rows[2]?.multiplier ?? 1.6;
+  if (weight <= 10) return rows[3]?.multiplier ?? 1.55;
+  return rows[4]?.multiplier ?? 1.5;
+};
+
+const getWeightBandLabel = (weight: number) => {
+  if (weight <= 2) return "~2kg";
+  if (weight <= 3) return "~3kg";
+  if (weight <= 5) return "~5kg";
+  if (weight <= 10) return "~10kg";
+  return "10kg+";
+};
+
+const roundClientQuote = (value: number) => Math.ceil(value / 1000) * 1000;
 
 export function ShippingCalculator() {
-  const [country, setCountry] = useState<CountryKey>("FR");
-  const [destinationCountry, setDestinationCountry] =
-    useState<DestinationCountryKey>("KR");
+  const [tradeType, setTradeType] = useState<TradeType>("import");
+  const [countryQuery, setCountryQuery] = useState<string>("France");
   const [actualWeight, setActualWeight] = useState<number>(5);
   const [length, setLength] = useState<number>(40);
   const [width, setWidth] = useState<number>(30);
   const [height, setHeight] = useState<number>(25);
-  const [quarantine, setQuarantine] = useState<boolean>(true);
-  const [fsc, setFsc] = useState<number>(25.5);
+
+  const matchedCountry = useMemo(() => {
+    const normalized = normalizeCountry(countryQuery);
+    if (!normalized) return null;
+
+    return (
+      countries.find((country) => {
+        const candidates = [country.label, country.rawName, country.id];
+        return candidates.some(
+          (candidate) => normalizeCountry(candidate) === normalized,
+        );
+      }) ?? null
+    );
+  }, [countryQuery]);
 
   const calc = useMemo(() => {
-    const volumetric = (length * width * height) / 5000;
-    const heavier = Math.max(actualWeight || 0, volumetric || 0);
-    const chargeable = ceilHalf(heavier);
-    const rate = COUNTRIES[country].rate;
-    const baseFreight = chargeable * rate;
-    const fuelSurcharge = baseFreight * (fsc / 100);
-    const additional = quarantine ? QUARANTINE_FEE : 0;
-    const total = baseFreight + fuelSurcharge + additional;
-    const usedVolumetric = volumetric > (actualWeight || 0);
+    const volumetricWeight = (length * width * height) / 5000;
+    const chargeableWeight = Math.max(
+      0.5,
+      ceilHalf(Math.max(actualWeight || 0, volumetricWeight || 0)),
+    );
+    const rateTable = tradeType === "import" ? importSaver : exportSaver;
+    const zone = matchedCountry
+      ? tradeType === "import"
+        ? matchedCountry.importZone
+        : matchedCountry.exportZone
+      : null;
+    const lookupWeight =
+      rateTable.weights.find((weight) => weight >= chargeableWeight) ??
+      rateTable.weights[rateTable.weights.length - 1];
+    const weightKey = lookupWeight.toFixed(1);
+    const baseCost =
+      zone && zone > 0
+        ? rateTable.ndcRates[weightKey]?.[String(zone)] ?? null
+        : null;
+    const multiplier = getTariffMultiplier(tradeType, chargeableWeight);
+    const clientQuote =
+      baseCost !== null ? roundClientQuote(baseCost * multiplier) : null;
+    const zoneMissing = matchedCountry !== null && (!zone || zone <= 0);
+    const routeSummary = matchedCountry
+      ? tradeType === "import"
+        ? `${matchedCountry.label} -> 대한민국`
+        : `대한민국 -> ${matchedCountry.label}`
+      : tradeType === "import"
+        ? "출발 국가 -> 대한민국"
+        : "대한민국 -> 도착 국가";
+
     return {
-      volumetric,
-      chargeable,
-      rate,
-      baseFreight,
-      fuelSurcharge,
-      additional,
-      total,
-      usedVolumetric,
+      volumetricWeight,
+      chargeableWeight,
+      lookupWeight,
+      zone,
+      baseCost,
+      multiplier,
+      clientQuote,
+      routeSummary,
+      rateTable,
+      zoneMissing,
+      usedVolumetric: volumetricWeight > (actualWeight || 0),
     };
-  }, [country, actualWeight, length, width, height, quarantine, fsc]);
+  }, [actualWeight, height, length, matchedCountry, tradeType, width]);
+
+  const countryFieldLabel =
+    tradeType === "import" ? "출발 국가" : "도착 국가";
+  const countryFieldHint =
+    tradeType === "import"
+      ? "어느 나라에서 들어오는 화물인가요?"
+      : "어느 나라로 나가는 화물인가요?";
 
   return (
     <div className="mx-auto w-full max-w-6xl">
-      {/* Header */}
       <div className="mb-8 flex flex-col items-center text-center">
         <div className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-1.5 text-xs font-medium text-muted-foreground shadow-sm">
-          <Sparkles className="h-3.5 w-3.5 text-primary-glow" />
-          Real-time Air Freight Estimator
+          <Calculator className="h-3.5 w-3.5 text-primary-glow" />
+          EUROPE CONNECT 운임표 기준
         </div>
         <h1 className="mt-4 text-4xl font-bold text-foreground md:text-5xl">
-          International Air Shipping Quote Calculator
+          국제 항공 배송 견적 계산기
         </h1>
-        <p className="mt-3 max-w-xl text-sm text-muted-foreground md:text-base">
-          유럽 프리미엄 F&B 수입 전문 — 실시간으로 운임을 산출해드립니다.
+        <p className="mt-3 max-w-2xl text-sm text-muted-foreground md:text-base">
+          첨부된 EUROPE CONNECT 운임표의 ZONE, Saver, Tarif 시트를 기준으로
+          수입 또는 수출 견적을 계산합니다.
         </p>
       </div>
 
       <Card className="overflow-hidden border-border/60 bg-gradient-surface p-0 shadow-elegant">
         <div className="grid grid-cols-1 lg:grid-cols-5">
-          {/* LEFT — Input Form */}
           <div className="lg:col-span-3 p-6 md:p-10">
             <div className="mb-6 flex items-center gap-2">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -114,88 +179,64 @@ export function ShippingCalculator() {
               </div>
               <div>
                 <h2 className="text-lg font-semibold text-foreground">
-                  화물 정보 입력
+                  배송 정보 입력
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  Shipment details
+                  수입/수출 구분과 국가 기준 조회
                 </p>
               </div>
             </div>
 
             <div className="space-y-6">
-              {/* Country */}
               <div className="space-y-2">
                 <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  출발 국가 · Origin Country
+                  운송 구분
                 </Label>
                 <Select
-                  value={country}
-                  onValueChange={(v) => setCountry(v as CountryKey)}
+                  value={tradeType}
+                  onValueChange={(value) => setTradeType(value as TradeType)}
                 >
                   <SelectTrigger className="h-12 bg-surface text-base">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {(Object.keys(COUNTRIES) as CountryKey[]).map((k) => (
-                      <SelectItem key={k} value={k} className="py-2.5">
-                        <span className="flex items-center gap-3">
-                          <span className="text-lg">
-                            {COUNTRIES[k].flag}
-                          </span>
-                          <span className="font-medium">
-                            {COUNTRIES[k].label}
-                          </span>
-                          <span className="text-muted-foreground">
-                            {COUNTRIES[k].sub}
-                          </span>
-                          <span className="ml-auto text-xs text-muted-foreground">
-                            {COUNTRIES[k].rate.toLocaleString()} ₩/kg
-                          </span>
-                        </span>
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="import">수입</SelectItem>
+                    <SelectItem value="export">
+                      수출
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Destination Country
-                </Label>
-                <Select
-                  value={destinationCountry}
-                  onValueChange={(v) =>
-                    setDestinationCountry(v as DestinationCountryKey)
-                  }
-                >
-                  <SelectTrigger className="h-12 bg-surface text-base">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(
-                      Object.keys(
-                        DESTINATION_COUNTRIES,
-                      ) as DestinationCountryKey[]
-                    ).map((k) => (
-                      <SelectItem key={k} value={k} className="py-2.5">
-                        <span className="flex items-center gap-3">
-                          <span className="font-medium">
-                            {DESTINATION_COUNTRIES[k].label}
-                          </span>
-                          <span className="ml-auto text-xs text-muted-foreground">
-                            {DESTINATION_COUNTRIES[k].flag}
-                          </span>
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {countryFieldLabel}
+                  </Label>
+                  <span className="text-[11px] text-muted-foreground">
+                    {countryFieldHint}
+                  </span>
+                </div>
+                <Input
+                  list="country-options"
+                  value={countryQuery}
+                  onChange={(event) => setCountryQuery(event.target.value)}
+                  placeholder="국가명을 입력해 선택하세요"
+                  className="h-12 bg-surface text-base font-medium"
+                />
+                <datalist id="country-options">
+                  {countries.map((country) => (
+                    <option key={country.id} value={country.label} />
+                  ))}
+                </datalist>
+                <p className="text-[11px] text-muted-foreground">
+                  ZONE 시트 기준으로 정확히 일치하는 국가를 조회합니다.
+                </p>
               </div>
 
-              {/* Weight */}
               <div className="space-y-2">
                 <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  실 중량 · Actual Weight (kg)
+                  실중량 (kg)
                 </Label>
                 <div className="relative">
                   <Input
@@ -203,8 +244,8 @@ export function ShippingCalculator() {
                     min={0}
                     step={0.1}
                     value={actualWeight}
-                    onChange={(e) =>
-                      setActualWeight(parseFloat(e.target.value) || 0)
+                    onChange={(event) =>
+                      setActualWeight(parseFloat(event.target.value) || 0)
                     }
                     className="h-12 bg-surface pr-14 text-base font-medium"
                   />
@@ -214,182 +255,172 @@ export function ShippingCalculator() {
                 </div>
               </div>
 
-              {/* Dimensions */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    박스 규격 · Dimensions (cm)
+                    박스 규격 (cm)
                   </Label>
                   <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
                     <Ruler className="h-3 w-3" />
-                    L × W × H
+                    L x W x H
                   </span>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   {[
-                    { v: length, set: setLength, lbl: "L" },
-                    { v: width, set: setWidth, lbl: "W" },
-                    { v: height, set: setHeight, lbl: "H" },
-                  ].map((d, i) => (
-                    <div key={i} className="relative">
+                    { value: length, setValue: setLength, label: "L" },
+                    { value: width, setValue: setWidth, label: "W" },
+                    { value: height, setValue: setHeight, label: "H" },
+                  ].map((dimension) => (
+                    <div key={dimension.label} className="relative">
                       <Input
                         type="number"
                         min={0}
-                        value={d.v}
-                        onChange={(e) =>
-                          d.set(parseFloat(e.target.value) || 0)
+                        value={dimension.value}
+                        onChange={(event) =>
+                          dimension.setValue(
+                            parseFloat(event.target.value) || 0,
+                          )
                         }
                         className="h-12 bg-surface pr-9 text-center text-base font-medium"
                       />
                       <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">
-                        {d.lbl}
+                        {dimension.label}
                       </span>
                     </div>
                   ))}
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  부피중량 = (L × W × H) / 5000 ={" "}
+                  부피중량 = (L x W x H) / 5000 ={" "}
                   <span className="font-semibold text-foreground">
-                    {calc.volumetric.toFixed(2)} kg
+                    {calc.volumetricWeight.toFixed(2)} kg
                   </span>
                 </p>
               </div>
 
-              {/* Quarantine toggle */}
-              <div className="flex items-center justify-between rounded-xl border border-border bg-surface p-4">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-success/10 text-success">
-                    <ShieldCheck className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold text-foreground">
-                      식품 검역 · Food Quarantine
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      식검 진행 시 + ₩ 55,000 추가
-                    </div>
-                  </div>
-                </div>
-                <Switch
-                  checked={quarantine}
-                  onCheckedChange={setQuarantine}
-                />
-              </div>
-
-              {/* FSC slider */}
               <div className="rounded-xl border border-border bg-surface p-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Flame className="h-4 w-4 text-primary-glow" />
-                    <Label className="text-sm font-semibold text-foreground">
-                      유류할증료 · Fuel Surcharge
-                    </Label>
+                <div className="mb-3 flex items-center gap-2">
+                  <Globe2 className="h-4 w-4 text-primary-glow" />
+                  <div className="text-sm font-semibold text-foreground">
+                    운임 계산 기준
                   </div>
-                  <span className="rounded-md bg-primary/10 px-2 py-0.5 text-sm font-bold tabular-nums text-primary">
-                    {fsc.toFixed(1)} %
-                  </span>
                 </div>
-                <Slider
-                  value={[fsc]}
-                  onValueChange={(v) => setFsc(v[0])}
-                  min={0}
-                  max={60}
-                  step={0.1}
-                />
-                <div className="mt-2 flex justify-between text-[10px] text-muted-foreground">
-                  <span>0%</span>
-                  <span>실시간 연동 (Mock API)</span>
-                  <span>60%</span>
+                <div className="space-y-2 text-xs text-muted-foreground">
+                  <p>1. ZONE 시트에서 WXS 존을 찾습니다.</p>
+                  <p>
+                    2.{" "}
+                    {tradeType === "import" ? "Import Saver" : "Export Saver"}{" "}
+                    시트에서 NDC 원가를 가져옵니다.
+                  </p>
+                  <p>3. Tarif 배율을 적용하고 1,000원 단위로 올림합니다.</p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* RIGHT — Result */}
-          <div className="lg:col-span-2 relative overflow-hidden bg-gradient-primary p-6 text-primary-foreground md:p-10">
-            {/* Decorative orbs */}
-            <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-primary-glow/30 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-24 -left-16 h-72 w-72 rounded-full bg-primary-glow/20 blur-3xl" />
-
+          <div className="relative overflow-hidden bg-gradient-primary p-6 text-primary-foreground md:p-10 lg:col-span-2">
             <div className="relative">
               <div className="flex items-center justify-between">
                 <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[11px] font-medium backdrop-blur-sm">
-                  <span className="relative flex h-1.5 w-1.5">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-75" />
-                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-success" />
-                  </span>
-                  Live Quote
+                  <Plane className="h-3.5 w-3.5" />
+                  실시간 견적
                 </div>
-                <Plane className="h-5 w-5 opacity-70" />
               </div>
 
               <p className="mt-8 text-xs uppercase tracking-widest text-primary-foreground/60">
-                최종 예상 견적 · Total
+                최종 예상 견적
               </p>
               <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-4xl font-bold tabular-nums tracking-tight md:text-5xl">
-                  {formatKRW(calc.total)}
+                <span className="text-4xl font-bold tracking-tight md:text-5xl">
+                  {calc.clientQuote !== null
+                    ? formatKRW(calc.clientQuote)
+                    : "--"}
                 </span>
               </div>
-              <p className="hidden">
-                {COUNTRIES[country].flag} {COUNTRIES[country].sub} → 🇰🇷
-                대한민국 · 항공 운송 기준
-              </p>
-
               <p className="mt-1 text-xs text-primary-foreground/60">
-                {COUNTRIES[country].label}
-                <ArrowRight className="mx-1 inline h-3 w-3" />
-                {DESTINATION_COUNTRIES[destinationCountry].label}
+                {calc.routeSummary}
               </p>
 
-              {/* Chargeable weight badge */}
               <div className="mt-6 rounded-xl border border-white/15 bg-white/5 p-4 backdrop-blur-sm">
-                <div className="flex items-start gap-2">
-                  <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary-foreground/70" />
-                  <div className="text-xs leading-relaxed text-primary-foreground/85">
+                <div className="space-y-2 text-xs leading-relaxed text-primary-foreground/85">
+                  <p>
+                    적용 중량:{" "}
                     <span className="font-semibold text-primary-foreground">
-                      과금중량 {calc.chargeable.toFixed(1)} kg 적용
-                    </span>{" "}
-                    —{" "}
-                    {calc.usedVolumetric
-                      ? `부피중량(${calc.volumetric.toFixed(2)}kg)이 실중량(${actualWeight}kg)보다 커서 부피중량 기준으로 산정됩니다.`
-                      : `실중량(${actualWeight}kg)이 부피중량(${calc.volumetric.toFixed(2)}kg)보다 커서 실중량 기준으로 산정됩니다.`}
-                  </div>
+                      {calc.chargeableWeight.toFixed(1)} kg
+                    </span>
+                  </p>
+                  <p>
+                    운임표 조회 중량:{" "}
+                    <span className="font-semibold text-primary-foreground">
+                      {calc.lookupWeight.toFixed(1)} kg
+                    </span>
+                  </p>
+                  <p>
+                    적용 기준:{" "}
+                    <span className="font-semibold text-primary-foreground">
+                      {calc.usedVolumetric ? "부피중량" : "실중량"}
+                    </span>
+                  </p>
+                  {matchedCountry === null ? (
+                    <p>운임표에 있는 국가명을 선택해 주세요.</p>
+                  ) : calc.zoneMissing ? (
+                    <p>
+                      선택한 방향 기준으로 유효한 WXS 존이 없습니다.
+                    </p>
+                  ) : (
+                    <p>
+                      선택한 방향 기준 ZONE 시트에서 {calc.zone}존을 찾았습니다.
+                    </p>
+                  )}
                 </div>
               </div>
 
-              {/* Breakdown receipt */}
               <div className="mt-6">
                 <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-primary-foreground/70">
                   <Receipt className="h-3.5 w-3.5" />
-                  상세 내역
+                  견적 상세
                 </div>
                 <div className="space-y-2.5 text-sm">
                   <Row
-                    label="기본 운임"
-                    sub={`${calc.chargeable.toFixed(1)}kg × ${COUNTRIES[country].rate.toLocaleString()}₩`}
-                    value={formatKRW(calc.baseFreight)}
+                    label="운송 구분"
+                    value={tradeType === "import" ? "수입" : "수출"}
                   />
                   <Row
-                    label="유류할증료"
-                    sub={`FSC ${fsc.toFixed(1)}%`}
-                    value={formatKRW(calc.fuelSurcharge)}
+                    label="국가"
+                    value={matchedCountry?.label ?? "미일치"}
                   />
                   <Row
-                    label="식품 검역비"
-                    sub={quarantine ? "식검 진행" : "미진행"}
+                    label="존"
+                    value={calc.zone ? `${calc.zone}` : "확인 불가"}
+                  />
+                  <Row
+                    label="원가"
+                    sub={`${
+                      tradeType === "import" ? "Import Saver" : "Export Saver"
+                    } NDC`}
                     value={
-                      quarantine ? formatKRW(calc.additional) : "— 0"
+                      calc.baseCost !== null ? formatKRW(calc.baseCost) : "--"
                     }
-                    muted={!quarantine}
+                  />
+                  <Row
+                    label="Tarif 배율"
+                    sub={getWeightBandLabel(calc.chargeableWeight)}
+                    value={`${calc.multiplier.toFixed(2)}x`}
+                  />
+                  <Row
+                    label="유류할증료 참고"
+                    value={
+                      calc.rateTable.fuelSurcharge !== null
+                        ? `${(calc.rateTable.fuelSurcharge * 100).toFixed(1)}%`
+                        : "--"
+                    }
                   />
                   <div className="my-3 border-t border-dashed border-white/20" />
                   <div className="flex items-baseline justify-between">
-                    <span className="text-sm font-semibold">
-                      합계 · Total
-                    </span>
-                    <span className="text-xl font-bold tabular-nums">
-                      {formatKRW(calc.total)}
+                    <span className="text-sm font-semibold">견적가</span>
+                    <span className="text-xl font-bold">
+                      {calc.clientQuote !== null
+                        ? formatKRW(calc.clientQuote)
+                        : "--"}
                     </span>
                   </div>
                 </div>
@@ -400,15 +431,19 @@ export function ShippingCalculator() {
                 className="mt-8 h-12 w-full bg-white text-primary hover:bg-white/90"
                 onClick={() =>
                   alert(
-                    "운송 의뢰가 접수되었습니다.\n담당자가 곧 연락드립니다.",
+                    `경로: ${calc.routeSummary}\n견적가: ${
+                      calc.clientQuote !== null
+                        ? formatKRW(calc.clientQuote)
+                        : "국가 또는 존 정보를 확인해 주세요"
+                    }`,
                   )
                 }
               >
-                운송 의뢰하기
+                견적 확인
                 <ArrowRight className="ml-1 h-4 w-4" />
               </Button>
               <p className="mt-3 text-center text-[11px] text-primary-foreground/50">
-                * 본 견적은 참고용이며, 실제 운임은 화물 검수 후 확정됩니다.
+                ZONE, Saver, Tarif 시트 데이터를 기준으로 계산합니다.
               </p>
             </div>
           </div>
@@ -422,28 +457,20 @@ function Row({
   label,
   sub,
   value,
-  muted,
 }: {
   label: string;
   sub?: string;
   value: string;
-  muted?: boolean;
 }) {
   return (
-    <div className="flex items-baseline justify-between">
+    <div className="flex items-baseline justify-between gap-4">
       <div>
-        <div
-          className={`text-sm ${muted ? "text-primary-foreground/50" : "text-primary-foreground/90"}`}
-        >
-          {label}
-        </div>
-        {sub && (
+        <div className="text-sm text-primary-foreground/90">{label}</div>
+        {sub ? (
           <div className="text-[11px] text-primary-foreground/50">{sub}</div>
-        )}
+        ) : null}
       </div>
-      <div
-        className={`tabular-nums ${muted ? "text-primary-foreground/50" : "font-semibold text-primary-foreground"}`}
-      >
+      <div className="text-right font-semibold tabular-nums text-primary-foreground">
         {value}
       </div>
     </div>
