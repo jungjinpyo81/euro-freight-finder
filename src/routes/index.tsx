@@ -4,7 +4,7 @@ import { ShippingCalculator } from "@/components/ShippingCalculator";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "국제 항공 배송 견적 계산기 | Premium F&B Import" },
+      { title: "International Air Shipping Quote Calculator | Premium F&B Import" },
       {
         name: "description",
         content:

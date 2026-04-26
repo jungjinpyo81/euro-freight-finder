@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 
 type CountryKey = "UK" | "FR" | "IT" | "DE";
+type DestinationCountryKey = "KR" | "JP" | "SG" | "AE" | "US";
 
 const COUNTRIES: Record<
   CountryKey,
@@ -36,6 +37,17 @@ const COUNTRIES: Record<
   DE: { label: "Germany", sub: "독일", rate: 12500, flag: "🇩🇪" },
 };
 
+const DESTINATION_COUNTRIES: Record<
+  DestinationCountryKey,
+  { label: string; flag: string }
+> = {
+  KR: { label: "South Korea", flag: "KR" },
+  JP: { label: "Japan", flag: "JP" },
+  SG: { label: "Singapore", flag: "SG" },
+  AE: { label: "United Arab Emirates", flag: "AE" },
+  US: { label: "United States", flag: "US" },
+};
+
 const QUARANTINE_FEE = 55000;
 
 const formatKRW = (n: number) =>
@@ -45,6 +57,8 @@ const ceilHalf = (n: number) => Math.ceil(n * 2) / 2;
 
 export function ShippingCalculator() {
   const [country, setCountry] = useState<CountryKey>("FR");
+  const [destinationCountry, setDestinationCountry] =
+    useState<DestinationCountryKey>("KR");
   const [actualWeight, setActualWeight] = useState<number>(5);
   const [length, setLength] = useState<number>(40);
   const [width, setWidth] = useState<number>(30);
@@ -83,7 +97,7 @@ export function ShippingCalculator() {
           Real-time Air Freight Estimator
         </div>
         <h1 className="mt-4 text-4xl font-bold text-foreground md:text-5xl">
-          국제 항공 배송 견적 계산기
+          International Air Shipping Quote Calculator
         </h1>
         <p className="mt-3 max-w-xl text-sm text-muted-foreground md:text-base">
           유럽 프리미엄 F&B 수입 전문 — 실시간으로 운임을 산출해드립니다.
@@ -136,6 +150,40 @@ export function ShippingCalculator() {
                           </span>
                           <span className="ml-auto text-xs text-muted-foreground">
                             {COUNTRIES[k].rate.toLocaleString()} ₩/kg
+                          </span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Destination Country
+                </Label>
+                <Select
+                  value={destinationCountry}
+                  onValueChange={(v) =>
+                    setDestinationCountry(v as DestinationCountryKey)
+                  }
+                >
+                  <SelectTrigger className="h-12 bg-surface text-base">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(
+                      Object.keys(
+                        DESTINATION_COUNTRIES,
+                      ) as DestinationCountryKey[]
+                    ).map((k) => (
+                      <SelectItem key={k} value={k} className="py-2.5">
+                        <span className="flex items-center gap-3">
+                          <span className="font-medium">
+                            {DESTINATION_COUNTRIES[k].label}
+                          </span>
+                          <span className="ml-auto text-xs text-muted-foreground">
+                            {DESTINATION_COUNTRIES[k].flag}
                           </span>
                         </span>
                       </SelectItem>
@@ -283,9 +331,15 @@ export function ShippingCalculator() {
                   {formatKRW(calc.total)}
                 </span>
               </div>
-              <p className="mt-1 text-xs text-primary-foreground/60">
+              <p className="hidden">
                 {COUNTRIES[country].flag} {COUNTRIES[country].sub} → 🇰🇷
                 대한민국 · 항공 운송 기준
+              </p>
+
+              <p className="mt-1 text-xs text-primary-foreground/60">
+                {COUNTRIES[country].label}
+                <ArrowRight className="mx-1 inline h-3 w-3" />
+                {DESTINATION_COUNTRIES[destinationCountry].label}
               </p>
 
               {/* Chargeable weight badge */}
