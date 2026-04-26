@@ -1,26 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { ShippingCalculator } from "@/components/ShippingCalculator";
 
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "국제 항공 배송 견적 계산기 | Premium F&B Import" },
+      {
+        name: "description",
+        content:
+          "유럽 프리미엄 F&B 수입 전문 — 영국·프랑스·이탈리아·독일 → 한국 항공 운임을 실시간으로 계산해드립니다.",
+      },
+    ],
+  }),
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. For sites with multiple pages (About, Services, Contact, etc.),
-// create separate route files (about.tsx, services.tsx, contact.tsx) — don't put all pages in this file.
-function PlaceholderIndex() {
-  return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
-  );
-}
-
 function Index() {
-  return <PlaceholderIndex />;
+  return (
+    <main className="min-h-screen px-4 py-10 md:py-16">
+      <ShippingCalculator />
+    </main>
+  );
 }
