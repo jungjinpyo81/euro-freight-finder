@@ -241,6 +241,8 @@ export function ShippingCalculator() {
                   onChange={(event) => setCountryQuery(event.target.value)}
                   placeholder="국가명을 입력해 선택하세요"
                   className="h-12 bg-surface text-base font-medium"
+                  autoComplete="off"
+                  name="shipping-country"
                 />
                 <datalist id="country-options">
                   {countries.map((country) => (
@@ -266,6 +268,8 @@ export function ShippingCalculator() {
                       setActualWeight(parseFloat(event.target.value) || 0)
                     }
                     className="h-12 bg-surface pr-14 text-base font-medium"
+                    autoComplete="off"
+                    name="shipping-actual-weight"
                   />
                   <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">
                     kg
@@ -300,6 +304,8 @@ export function ShippingCalculator() {
                           )
                         }
                         className="h-12 bg-surface pr-9 text-center text-base font-medium"
+                        autoComplete="off"
+                        name={`shipping-dim-${dimension.label}`}
                       />
                       <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">
                         {dimension.label}
