@@ -402,41 +402,6 @@ export function ShippingCalculator() {
                     label="국가"
                     value={matchedCountry?.label ?? "미일치"}
                   />
-                  <Row
-                    label="존"
-                    value={calc.zone ? `${calc.zone}` : "확인 불가"}
-                  />
-                  <Row
-                    label="NDC 베이스"
-                    sub={`${
-                      tradeType === "import" ? "Import Saver" : "Export Saver"
-                    } @ ${calc.lookupWeight.toFixed(1)}kg`}
-                    value={
-                      calc.ndcBase !== null ? formatKRW(calc.ndcBase) : "--"
-                    }
-                  />
-                  <Row
-                    label="유류할증료 (실시간)"
-                    sub={
-                      fscQuery.data?.effectiveDate
-                        ? `UPS ${fscQuery.data.effectiveDate} 기준`
-                        : fscQuery.isLoading
-                          ? "UPS 코리아에서 불러오는 중..."
-                          : "기본값 적용"
-                    }
-                    value={`${(fsc * 100).toFixed(2)}%`}
-                  />
-                  <Row
-                    label="원가 (NDC × 1+FSC)"
-                    value={
-                      calc.baseCost !== null ? formatKRW(calc.baseCost) : "--"
-                    }
-                  />
-                  <Row
-                    label="Tarif 배율"
-                    sub={getWeightBandLabel(calc.chargeableWeight)}
-                    value={`${calc.multiplier.toFixed(2)}x`}
-                  />
                   <div className="my-3 border-t border-dashed border-white/20" />
                   <div className="flex items-baseline justify-between">
                     <span className="text-sm font-semibold">견적가</span>
@@ -448,23 +413,6 @@ export function ShippingCalculator() {
                   </div>
                 </div>
               </div>
-
-              <Button
-                size="lg"
-                className="mt-8 h-12 w-full bg-white text-primary hover:bg-white/90"
-                onClick={() =>
-                  alert(
-                    `경로: ${calc.routeSummary}\n견적가: ${
-                      calc.clientQuote !== null
-                        ? formatKRW(calc.clientQuote)
-                        : "국가 또는 존 정보를 확인해 주세요"
-                    }`,
-                  )
-                }
-              >
-                견적 확인
-                <ArrowRight className="ml-1 h-4 w-4" />
-              </Button>
               <p className="mt-3 text-center text-[11px] text-primary-foreground/50">
                 ZONE, Saver, Tarif 시트 데이터를 기준으로 계산합니다.
               </p>
