@@ -91,6 +91,18 @@ export function ShippingCalculator() {
   const [width, setWidth] = useState<number>(30);
   const [height, setHeight] = useState<number>(25);
 
+  const fetchFsc = useServerFn(getUpsFuelSurcharge);
+  const fscQuery = useQuery({
+    queryKey: ["ups-fuel-surcharge"],
+    queryFn: () => fetchFsc(),
+    staleTime: 60 * 60 * 1000, // 1 hour
+    refetchOnWindowFocus: false,
+  });
+  const liveFsc = fscQuery.data?.rate;
+  const fallbackFsc =
+    (tradeType === "import" ? importSaver.fuelSurcharge : exportSaver.fuelSurcharge) ?? 0.4375;
+  const fsc = liveFsc ?? fallbackFsc;
+
   const matchedCountry = useMemo(() => {
     const normalized = normalizeCountry(countryQuery);
     if (!normalized) return null;
@@ -121,10 +133,12 @@ export function ShippingCalculator() {
       rateTable.weights.find((weight) => weight >= chargeableWeight) ??
       rateTable.weights[rateTable.weights.length - 1];
     const weightKey = lookupWeight.toFixed(1);
-    const baseCost =
+    const ndcBase =
       zone && zone > 0
         ? rateTable.ndcRates[weightKey]?.[String(zone)] ?? null
         : null;
+    // 원가 (data sheet 표시값) = NDC base × (1 + 유류할증료)
+    const baseCost = ndcBase !== null ? ndcBase * (1 + fsc) : null;
     const multiplier = getTariffMultiplier(tradeType, chargeableWeight);
     const clientQuote =
       baseCost !== null ? roundClientQuote(baseCost * multiplier) : null;
@@ -142,6 +156,7 @@ export function ShippingCalculator() {
       chargeableWeight,
       lookupWeight,
       zone,
+      ndcBase,
       baseCost,
       multiplier,
       clientQuote,
@@ -150,7 +165,7 @@ export function ShippingCalculator() {
       zoneMissing,
       usedVolumetric: volumetricWeight > (actualWeight || 0),
     };
-  }, [actualWeight, height, length, matchedCountry, tradeType, width]);
+  }, [actualWeight, fsc, height, length, matchedCountry, tradeType, width]);
 
   const countryFieldLabel =
     tradeType === "import" ? "출발 국가" : "도착 국가";
