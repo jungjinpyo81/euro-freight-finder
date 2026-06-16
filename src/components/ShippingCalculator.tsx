@@ -2,13 +2,18 @@ import { useMemo, useState } from "react";
 import {
   ArrowRight,
   Calculator,
+  Fuel,
   Globe2,
   Package,
   Plane,
   Receipt,
+  RefreshCw,
   Ruler,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import pricingData from "@/data/europeConnectPricing";
+import { getUpsFuelSurcharge } from "@/lib/fuelSurcharge.functions";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -86,6 +91,18 @@ export function ShippingCalculator() {
   const [width, setWidth] = useState<number>(30);
   const [height, setHeight] = useState<number>(25);
 
+  const fetchFsc = useServerFn(getUpsFuelSurcharge);
+  const fscQuery = useQuery({
+    queryKey: ["ups-fuel-surcharge"],
+    queryFn: () => fetchFsc(),
+    staleTime: 60 * 60 * 1000, // 1 hour
+    refetchOnWindowFocus: false,
+  });
+  const liveFsc = fscQuery.data?.rate;
+  const fallbackFsc =
+    (tradeType === "import" ? importSaver.fuelSurcharge : exportSaver.fuelSurcharge) ?? 0.4375;
+  const fsc = liveFsc ?? fallbackFsc;
+
   const matchedCountry = useMemo(() => {
     const normalized = normalizeCountry(countryQuery);
     if (!normalized) return null;
@@ -116,10 +133,12 @@ export function ShippingCalculator() {
       rateTable.weights.find((weight) => weight >= chargeableWeight) ??
       rateTable.weights[rateTable.weights.length - 1];
     const weightKey = lookupWeight.toFixed(1);
-    const baseCost =
+    const ndcBase =
       zone && zone > 0
         ? rateTable.ndcRates[weightKey]?.[String(zone)] ?? null
         : null;
+    // 원가 (data sheet 표시값) = NDC base × (1 + 유류할증료)
+    const baseCost = ndcBase !== null ? ndcBase * (1 + fsc) : null;
     const multiplier = getTariffMultiplier(tradeType, chargeableWeight);
     const clientQuote =
       baseCost !== null ? roundClientQuote(baseCost * multiplier) : null;
@@ -137,6 +156,7 @@ export function ShippingCalculator() {
       chargeableWeight,
       lookupWeight,
       zone,
+      ndcBase,
       baseCost,
       multiplier,
       clientQuote,
@@ -145,7 +165,7 @@ export function ShippingCalculator() {
       zoneMissing,
       usedVolumetric: volumetricWeight > (actualWeight || 0),
     };
-  }, [actualWeight, height, length, matchedCountry, tradeType, width]);
+  }, [actualWeight, fsc, height, length, matchedCountry, tradeType, width]);
 
   const countryFieldLabel =
     tradeType === "import" ? "출발 국가" : "도착 국가";
@@ -319,11 +339,24 @@ export function ShippingCalculator() {
 
           <div className="relative overflow-hidden bg-gradient-primary p-6 text-primary-foreground md:p-10 lg:col-span-2">
             <div className="relative">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[11px] font-medium backdrop-blur-sm">
                   <Plane className="h-3.5 w-3.5" />
                   실시간 견적
                 </div>
+                <button
+                  type="button"
+                  onClick={() => fscQuery.refetch()}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[11px] font-medium backdrop-blur-sm transition hover:bg-white/20 disabled:opacity-60"
+                  disabled={fscQuery.isFetching}
+                  title="UPS 유류할증료 새로고침"
+                >
+                  <Fuel className="h-3 w-3" />
+                  FSC {(fsc * 100).toFixed(2)}%
+                  <RefreshCw
+                    className={`h-3 w-3 ${fscQuery.isFetching ? "animate-spin" : ""}`}
+                  />
+                </button>
               </div>
 
               <p className="mt-8 text-xs uppercase tracking-widest text-primary-foreground/60">
@@ -393,10 +426,27 @@ export function ShippingCalculator() {
                     value={calc.zone ? `${calc.zone}` : "확인 불가"}
                   />
                   <Row
-                    label="원가"
+                    label="NDC 베이스"
                     sub={`${
                       tradeType === "import" ? "Import Saver" : "Export Saver"
-                    } NDC`}
+                    } @ ${calc.lookupWeight.toFixed(1)}kg`}
+                    value={
+                      calc.ndcBase !== null ? formatKRW(calc.ndcBase) : "--"
+                    }
+                  />
+                  <Row
+                    label="유류할증료 (실시간)"
+                    sub={
+                      fscQuery.data?.effectiveDate
+                        ? `UPS ${fscQuery.data.effectiveDate} 기준`
+                        : fscQuery.isLoading
+                          ? "UPS 코리아에서 불러오는 중..."
+                          : "기본값 적용"
+                    }
+                    value={`${(fsc * 100).toFixed(2)}%`}
+                  />
+                  <Row
+                    label="원가 (NDC × 1+FSC)"
                     value={
                       calc.baseCost !== null ? formatKRW(calc.baseCost) : "--"
                     }
@@ -405,14 +455,6 @@ export function ShippingCalculator() {
                     label="Tarif 배율"
                     sub={getWeightBandLabel(calc.chargeableWeight)}
                     value={`${calc.multiplier.toFixed(2)}x`}
-                  />
-                  <Row
-                    label="유류할증료 참고"
-                    value={
-                      calc.rateTable.fuelSurcharge !== null
-                        ? `${(calc.rateTable.fuelSurcharge * 100).toFixed(1)}%`
-                        : "--"
-                    }
                   />
                   <div className="my-3 border-t border-dashed border-white/20" />
                   <div className="flex items-baseline justify-between">
