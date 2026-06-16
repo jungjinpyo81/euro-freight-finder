@@ -413,10 +413,27 @@ export function ShippingCalculator() {
                     value={calc.zone ? `${calc.zone}` : "확인 불가"}
                   />
                   <Row
-                    label="원가"
+                    label="NDC 베이스"
                     sub={`${
                       tradeType === "import" ? "Import Saver" : "Export Saver"
-                    } NDC`}
+                    } @ ${calc.lookupWeight.toFixed(1)}kg`}
+                    value={
+                      calc.ndcBase !== null ? formatKRW(calc.ndcBase) : "--"
+                    }
+                  />
+                  <Row
+                    label="유류할증료 (실시간)"
+                    sub={
+                      fscQuery.data?.effectiveDate
+                        ? `UPS ${fscQuery.data.effectiveDate} 기준`
+                        : fscQuery.isLoading
+                          ? "UPS 코리아에서 불러오는 중..."
+                          : "기본값 적용"
+                    }
+                    value={`${(fsc * 100).toFixed(2)}%`}
+                  />
+                  <Row
+                    label="원가 (NDC × 1+FSC)"
                     value={
                       calc.baseCost !== null ? formatKRW(calc.baseCost) : "--"
                     }
@@ -425,14 +442,6 @@ export function ShippingCalculator() {
                     label="Tarif 배율"
                     sub={getWeightBandLabel(calc.chargeableWeight)}
                     value={`${calc.multiplier.toFixed(2)}x`}
-                  />
-                  <Row
-                    label="유류할증료 참고"
-                    value={
-                      calc.rateTable.fuelSurcharge !== null
-                        ? `${(calc.rateTable.fuelSurcharge * 100).toFixed(1)}%`
-                        : "--"
-                    }
                   />
                   <div className="my-3 border-t border-dashed border-white/20" />
                   <div className="flex items-baseline justify-between">
