@@ -315,23 +315,6 @@ export function ShippingCalculator() {
                 </p>
               </div>
 
-              <div className="rounded-xl border border-border bg-surface p-4">
-                <div className="mb-3 flex items-center gap-2">
-                  <Globe2 className="h-4 w-4 text-primary-glow" />
-                  <div className="text-sm font-semibold text-foreground">
-                    운임 계산 기준
-                  </div>
-                </div>
-                <div className="space-y-2 text-xs text-muted-foreground">
-                  <p>1. ZONE 시트에서 WXS 존을 찾습니다.</p>
-                  <p>
-                    2.{" "}
-                    {tradeType === "import" ? "Import Saver" : "Export Saver"}{" "}
-                    시트에서 NDC 원가를 가져옵니다.
-                  </p>
-                  <p>3. Tarif 배율을 적용하고 1,000원 단위로 올림합니다.</p>
-                </div>
-              </div>
             </div>
           </div>
 
