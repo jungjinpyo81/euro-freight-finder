@@ -11,9 +11,8 @@ import {
   Ruler,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import pricingData from "@/data/europeConnectPricing";
-import { getUpsFuelSurcharge } from "@/lib/fuelSurcharge.functions";
+import { fetchUpsFuelSurcharge } from "@/lib/fuelSurcharge";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -91,12 +90,12 @@ export function ShippingCalculator() {
   const [width, setWidth] = useState<number>(30);
   const [height, setHeight] = useState<number>(25);
 
-  const fetchFsc = useServerFn(getUpsFuelSurcharge);
   const fscQuery = useQuery({
     queryKey: ["ups-fuel-surcharge"],
-    queryFn: () => fetchFsc(),
+    queryFn: fetchUpsFuelSurcharge,
     staleTime: 60 * 60 * 1000, // 1 hour
     refetchOnWindowFocus: false,
+    retry: 1,
   });
   const liveFsc = fscQuery.data?.rate;
   const fallbackFsc =
