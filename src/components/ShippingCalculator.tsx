@@ -98,9 +98,8 @@ export function ShippingCalculator() {
     retry: 1,
   });
   const liveFsc = fscQuery.data?.rate;
-  const fallbackFsc =
-    (tradeType === "import" ? importSaver.fuelSurcharge : exportSaver.fuelSurcharge) ?? 0.4375;
-  const fsc = liveFsc ?? fallbackFsc;
+  // UPS Korea 공시 기준 단일 유류할증료 (수입/수출 공통). 실시간 조회 실패 시 0.4375 사용.
+  const fsc = liveFsc ?? 0.4375;
 
   const matchedCountry = useMemo(() => {
     const normalized = normalizeCountry(countryQuery);
