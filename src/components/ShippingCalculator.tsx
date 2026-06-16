@@ -363,12 +363,6 @@ export function ShippingCalculator() {
                     </span>
                   </p>
                   <p>
-                    운임표 조회 중량:{" "}
-                    <span className="font-semibold text-primary-foreground">
-                      {calc.lookupWeight.toFixed(1)} kg
-                    </span>
-                  </p>
-                  <p>
                     적용 기준:{" "}
                     <span className="font-semibold text-primary-foreground">
                       {calc.usedVolumetric ? "부피중량" : "실중량"}
@@ -380,11 +374,7 @@ export function ShippingCalculator() {
                     <p>
                       선택한 방향 기준으로 유효한 WXS 존이 없습니다.
                     </p>
-                  ) : (
-                    <p>
-                      선택한 방향 기준 ZONE 시트에서 {calc.zone}존을 찾았습니다.
-                    </p>
-                  )}
+                  ) : null}
                 </div>
               </div>
 
@@ -402,20 +392,8 @@ export function ShippingCalculator() {
                     label="국가"
                     value={matchedCountry?.label ?? "미일치"}
                   />
-                  <div className="my-3 border-t border-dashed border-white/20" />
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-sm font-semibold">견적가</span>
-                    <span className="text-xl font-bold">
-                      {calc.clientQuote !== null
-                        ? formatKRW(calc.clientQuote)
-                        : "--"}
-                    </span>
-                  </div>
                 </div>
               </div>
-              <p className="mt-3 text-center text-[11px] text-primary-foreground/50">
-                ZONE, Saver, Tarif 시트 데이터를 기준으로 계산합니다.
-              </p>
             </div>
           </div>
         </div>
