@@ -339,11 +339,24 @@ export function ShippingCalculator() {
 
           <div className="relative overflow-hidden bg-gradient-primary p-6 text-primary-foreground md:p-10 lg:col-span-2">
             <div className="relative">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[11px] font-medium backdrop-blur-sm">
                   <Plane className="h-3.5 w-3.5" />
                   실시간 견적
                 </div>
+                <button
+                  type="button"
+                  onClick={() => fscQuery.refetch()}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[11px] font-medium backdrop-blur-sm transition hover:bg-white/20 disabled:opacity-60"
+                  disabled={fscQuery.isFetching}
+                  title="UPS 유류할증료 새로고침"
+                >
+                  <Fuel className="h-3 w-3" />
+                  FSC {(fsc * 100).toFixed(2)}%
+                  <RefreshCw
+                    className={`h-3 w-3 ${fscQuery.isFetching ? "animate-spin" : ""}`}
+                  />
+                </button>
               </div>
 
               <p className="mt-8 text-xs uppercase tracking-widest text-primary-foreground/60">
