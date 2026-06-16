@@ -2,13 +2,18 @@ import { useMemo, useState } from "react";
 import {
   ArrowRight,
   Calculator,
+  Fuel,
   Globe2,
   Package,
   Plane,
   Receipt,
+  RefreshCw,
   Ruler,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import pricingData from "@/data/europeConnectPricing";
+import { getUpsFuelSurcharge } from "@/lib/fuelSurcharge.functions";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
