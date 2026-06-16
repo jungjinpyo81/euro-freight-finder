@@ -90,12 +90,12 @@ export function ShippingCalculator() {
   const [width, setWidth] = useState<number>(30);
   const [height, setHeight] = useState<number>(25);
 
-  const fetchFsc = useServerFn(getUpsFuelSurcharge);
   const fscQuery = useQuery({
     queryKey: ["ups-fuel-surcharge"],
-    queryFn: () => fetchFsc(),
+    queryFn: fetchUpsFuelSurcharge,
     staleTime: 60 * 60 * 1000, // 1 hour
     refetchOnWindowFocus: false,
+    retry: 1,
   });
   const liveFsc = fscQuery.data?.rate;
   const fallbackFsc =
