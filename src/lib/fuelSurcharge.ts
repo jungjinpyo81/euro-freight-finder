@@ -18,8 +18,8 @@ const PROXIES: Array<(url: string) => string> = [
 ];
 
 export const FSC_FALLBACK: FuelSurchargeResult = {
-  rate: 0.4375,
-  percent: 43.75,
+  rate: 0.4225,
+  percent: 42.25,
   effectiveDate: "",
   source: SOURCE_URL,
   fetchedAt: new Date(0).toISOString(),
