@@ -6,6 +6,8 @@ export type FuelSurchargeResult = {
   effectiveDate: string;
   source: string;
   fetchedAt: string;
+  fallback?: boolean;
+  error?: string;
 };
 
 const SOURCE_URL =
@@ -21,9 +23,14 @@ export const FSC_FALLBACK: FuelSurchargeResult = {
 
 export async function fetchUpsFuelSurcharge(): Promise<FuelSurchargeResult> {
   const { data, error } = await supabase.functions.invoke('fetch-ups-fsc');
-  if (error) throw error;
+  if (error) return { ...FSC_FALLBACK, fetchedAt: new Date().toISOString(), fallback: true, error: error.message };
   if (!data || typeof data.percent !== 'number') {
-    throw new Error('Invalid response from fetch-ups-fsc');
+    return {
+      ...FSC_FALLBACK,
+      fetchedAt: new Date().toISOString(),
+      fallback: true,
+      error: 'Invalid response from fetch-ups-fsc',
+    };
   }
   return data as FuelSurchargeResult;
 }
